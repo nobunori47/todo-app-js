@@ -1,26 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { google } from 'googleapis'
 import type { Todo } from '../src/types'
+import { getSheetsClient } from './_lib/googleAuth'
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID!
 const SHEET_NAME = 'Sheet1'
-const HEADERS = ['id', 'タイトル', '内容', '期日', '作成日時', 'priority']
-
-function getAuth() {
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n')
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: privateKey,
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  })
-}
-
-async function getSheetsClient() {
-  const auth = getAuth()
-  return google.sheets({ version: 'v4', auth })
-}
+const HEADERS = ['id', 'タイトル', '内容', '期日', '作成日時', 'priority', 'subtasks']
 
 function rowToTodo(row: string[]): Todo {
   return {
@@ -46,7 +30,7 @@ function todoToRow(todo: Todo): string[] {
   ]
 }
 
-async function ensureHeaders(sheets: ReturnType<typeof google.sheets>) {
+async function ensureHeaders(sheets: ReturnType<typeof getSheetsClient>) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: `${SHEET_NAME}!A1:G1`,
@@ -57,36 +41,42 @@ async function ensureHeaders(sheets: ReturnType<typeof google.sheets>) {
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A1`,
       valueInputOption: 'RAW',
-      requestBody: { values: [[...HEADERS, 'subtasks']] },
+      requestBody: { values: [HEADERS] },
     })
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const sheets = await getSheetsClient()
+  try {
+    const sheets = getSheetsClient()
 
-  if (req.method === 'GET') {
-    await ensureHeaders(sheets)
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A2:G`,
-    })
-    const rows = result.data.values ?? []
-    const todos = rows.filter(r => r[0]).map(rowToTodo)
-    return res.json(todos)
+    if (req.method === 'GET') {
+      await ensureHeaders(sheets)
+      const result = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A2:G`,
+      })
+      const rows = result.data.values ?? []
+      const todos = rows.filter(r => r[0]).map(rowToTodo)
+      return res.json(todos)
+    }
+
+    if (req.method === 'POST') {
+      const todo = req.body as Todo
+      await ensureHeaders(sheets)
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A:G`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [todoToRow(todo)] },
+      })
+      return res.json({ success: true })
+    }
+
+    return res.status(405).json({ error: 'Method not allowed' })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[api/sheets] error:', err)
+    return res.status(500).json({ error: message })
   }
-
-  if (req.method === 'POST') {
-    const todo = req.body as Todo
-    await ensureHeaders(sheets)
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:G`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [todoToRow(todo)] },
-    })
-    return res.json({ success: true })
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' })
 }
