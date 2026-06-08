@@ -14,7 +14,7 @@ function rowToTodo(row: string[]): Todo {
     dueDate: row[3] ?? '',
     createdAt: row[4] ?? '',
     priority: (row[5] as Todo['priority']) ?? 'medium',
-    subtasks: row[6] ? JSON.parse(row[6]) as string[] : [],
+    subtasks: row[6] ? (JSON.parse(row[6]) as string[]) : [],
   }
 }
 
@@ -46,7 +46,20 @@ async function ensureHeaders(sheets: ReturnType<typeof getSheetsClient>) {
   }
 }
 
+function errorResponse(res: VercelResponse, err: unknown, status = 500) {
+  const message = err instanceof Error ? err.message : String(err)
+  const stack = err instanceof Error ? err.stack : undefined
+  console.error('[api/sheets]', err)
+  return res.status(status).json({ error: message, stack })
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS ヘッダー（Vercel Preview URL からのアクセス対応）
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+
   try {
     const sheets = getSheetsClient()
 
@@ -63,6 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
       const todo = req.body as Todo
+      if (!todo?.id) return res.status(400).json({ error: 'id は必須です' })
       await ensureHeaders(sheets)
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
@@ -75,8 +89,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[api/sheets] error:', err)
-    return res.status(500).json({ error: message })
+    return errorResponse(res, err)
   }
 }
