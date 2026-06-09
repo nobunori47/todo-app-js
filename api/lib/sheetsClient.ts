@@ -1,4 +1,4 @@
-import { getAccessToken } from './googleAuth'
+import { getAccessToken } from './googleAuth.js'
 
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 
