@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { Todo } from '../src/types'
-import { sheetsGet, sheetsAppend } from './lib/sheetsClient'
+import { sheetsGet, sheetsAppend } from './lib/sheetsClient.js'
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID!
 const SHEET = 'Sheet1'
