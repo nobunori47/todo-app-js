@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Todo } from '../types'
 import PriorityBadge from './PriorityBadge'
 import DueDateBadge from './DueDateBadge'
+import DueDateAlertBadge from './DueDateAlertBadge'
 import { decomposeTask } from '../services/claudeApi'
 
 interface Props {
@@ -30,19 +31,33 @@ export default function TodoCard({ todo, onEdit, onDelete, onUpdate }: Props) {
     }
   }
 
+  const handleToggleComplete = () => {
+    onUpdate({ ...todo, completed: !todo.completed })
+  }
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition">
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition ${todo.completed ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <input
+              type="checkbox"
+              checked={!!todo.completed}
+              onChange={handleToggleComplete}
+              className="w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-400 shrink-0"
+              aria-label="タスクを完了にする"
+            />
             <PriorityBadge priority={todo.priority} />
-            <h3 className="font-semibold text-gray-800 truncate">{todo.title}</h3>
+            <h3 className={`font-semibold text-gray-800 truncate ${todo.completed ? 'line-through' : ''}`}>
+              {todo.title}
+            </h3>
           </div>
           {todo.content && (
             <p className="text-sm text-gray-500 mb-2 line-clamp-2">{todo.content}</p>
           )}
           <div className="flex items-center gap-3 flex-wrap">
             <DueDateBadge dueDate={todo.dueDate} />
+            <DueDateAlertBadge dueDate={todo.dueDate} />
             <span className="text-xs text-gray-400">
               作成: {new Date(todo.createdAt).toLocaleDateString('ja-JP')}
             </span>

@@ -8,4 +8,5 @@ export interface Todo {
   createdAt: string
   priority: Priority
   subtasks?: string[]
+  completed?: boolean
 }

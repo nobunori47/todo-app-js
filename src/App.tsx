@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Todo } from './types'
 import { fetchTodos, saveTodo, updateTodo, deleteTodo, seedTodos } from './services/sheetsApi'
 import TodoCard from './components/TodoCard'
 import TodoForm from './components/TodoForm'
 import ConfirmDialog from './components/ConfirmDialog'
+import Dashboard from './components/Dashboard'
+import TaskSearch from './components/TaskSearch'
+import { getDashboardStats, filterTodosByQuery } from './utils/todoStats'
 
 type Modal = { mode: 'add' } | { mode: 'edit'; todo: Todo } | null
 
@@ -14,6 +17,13 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const dashboardStats = useMemo(() => getDashboardStats(todos), [todos])
+  const filteredTodos = useMemo(
+    () => filterTodosByQuery(todos, searchQuery),
+    [todos, searchQuery]
+  )
 
   const loadTodos = useCallback(async () => {
     setLoading(true)
@@ -45,6 +55,7 @@ export default function App() {
           ...data,
           id: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
+          completed: data.completed ?? false,
         }
         await saveTodo(todo)
         setTodos(prev => [...prev, todo])
@@ -104,6 +115,18 @@ export default function App() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
+        {!loading && todos.length > 0 && (
+          <Dashboard stats={dashboardStats} />
+        )}
+
+        {!loading && todos.length > 0 && (
+          <TaskSearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            resultCount={filteredTodos.length}
+          />
+        )}
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {error}
@@ -123,9 +146,14 @@ export default function App() {
             <p className="text-lg mb-2">タスクがありません</p>
             <p className="text-sm">「+ 新規タスク」から追加してください</p>
           </div>
+        ) : filteredTodos.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <p className="text-lg mb-2">該当するタスクがありません</p>
+            <p className="text-sm">検索条件を変更してください</p>
+          </div>
         ) : (
           <div className="space-y-3">
-            {todos.map(todo => (
+            {filteredTodos.map(todo => (
               <TodoCard
                 key={todo.id}
                 todo={todo}
